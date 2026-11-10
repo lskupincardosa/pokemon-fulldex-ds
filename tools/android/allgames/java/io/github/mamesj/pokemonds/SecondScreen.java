@@ -40,7 +40,8 @@ final class SecondScreen implements DisplayManager.DisplayListener {
     SecondScreen(GameActivity host) {
         this.host = host;
         displays = (DisplayManager) host.getSystemService(GameActivity.DISPLAY_SERVICE);
-        mode = host.getSharedPreferences("settings", 0).getInt("ds_second_screen", OFF);
+        // (Default EXTRA TOUCH: the Thor build always uses it, and sets it from the game too.)
+        mode = host.getSharedPreferences("settings", 0).getInt("ds_second_screen", MERGED_TOUCH);
         if (mode < OFF || mode > COMPANION) mode = OFF;
         if (displays != null) displays.registerDisplayListener(this, ui);
     }
@@ -124,6 +125,7 @@ final class SecondScreen implements DisplayManager.DisplayListener {
                     Window window = getWindow();
                     if (window != null) {
                         window.addFlags(WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE);
+                        GameActivity.preferSixtyHz(window, getDisplay());
                         window.getDecorView().setSystemUiVisibility(View.SYSTEM_UI_FLAG_FULLSCREEN
                             | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY
                             | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
@@ -154,7 +156,18 @@ final class SecondScreen implements DisplayManager.DisplayListener {
 
     private final class ScreenView extends View {
         private Bitmap bitmap = Bitmap.createBitmap(256, 192, Bitmap.Config.ARGB_8888);
+        // (No filtering: the DS's pixels scaled by a whole number stay sharp. Android's default
+        // Paint filters bitmaps, which blurred them.)
         private final Paint paint = new Paint();
+        { paint.setFilterBitmap(false); paint.setAntiAlias(false); }
+        // "Sharp bilinear": the picture is first made a whole number of times larger with hard
+        // pixels (big), then fitted to the display with filtering, so only the seams between
+        // pixels are blended, by under a display pixel. It fills the display's width without
+        // the uneven pixel sizes of a plain fractional scale or the blur of filtering the DS
+        // picture itself.
+        private final Paint smooth = new Paint(Paint.FILTER_BITMAP_FLAG);
+        private Bitmap big;
+        private Canvas bigCanvas;
         private int pointer = -1;
         ScreenView(android.content.Context context) { super(context); setBackgroundColor(Color.BLACK); }
         @Override protected void onDraw(Canvas canvas) {
@@ -165,10 +178,41 @@ final class SecondScreen implements DisplayManager.DisplayListener {
                 if(bitmap.getWidth()!=width||bitmap.getHeight()!=height)bitmap=Bitmap.createBitmap(width,height,Bitmap.Config.ARGB_8888);
                 bitmap.setPixels(pixels,0,width,0,0,width,height);
             }
-            float scale=Math.min(getWidth()/(float)width,getHeight()/(float)height);
+            float scale=DsScreenGeometry.scale(getWidth(),getHeight(),width,height);
             float left=(getWidth()-width*scale)/2f,top=(getHeight()-height*scale)/2f;
             canvas.drawColor(Color.BLACK);
-            canvas.drawBitmap(bitmap, null, new RectF(left, top, left + width * scale, top + height * scale), paint);
+            final float right = left + width * scale, bottom = top + height * scale;
+            final int k = (int) Math.ceil(scale - 0.001f);
+            if (scale == k) canvas.drawBitmap(bitmap, null, new RectF(left, top, right, bottom), paint);
+            else {
+                if (big == null || big.getWidth() != width * k || big.getHeight() != height * k) {
+                    big = Bitmap.createBitmap(width * k, height * k, Bitmap.Config.ARGB_8888);
+                    bigCanvas = new Canvas(big);
+                }
+                bigCanvas.drawBitmap(bitmap, null, new android.graphics.Rect(0, 0, width * k, height * k), paint);
+                canvas.drawBitmap(big, null, new RectF(left, top, right, bottom), smooth);
+            }
+            // The space around the picture (the Thor's lower screen is narrower than 4:3, and the
+            // picture is a whole number of pixels per DS pixel) continues its edges instead of
+            // black bars: each row's outermost pixel out to the side, the top and bottom rows up
+            // and down, the corner pixels into the corners. The DS's screens mostly end in a
+            // plain colour or a gentle pattern, so the display reads as one screen.
+            final int W = width, H = height;
+            final float cw = getWidth(), ch = getHeight();
+            if (left > 0) {
+                canvas.drawBitmap(bitmap, new android.graphics.Rect(0, 0, 1, H), new RectF(0, top, left, bottom), paint);
+                canvas.drawBitmap(bitmap, new android.graphics.Rect(W - 1, 0, W, H), new RectF(right, top, cw, bottom), paint);
+            }
+            if (top > 0) {
+                canvas.drawBitmap(bitmap, new android.graphics.Rect(0, 0, W, 1), new RectF(left, 0, right, top), paint);
+                canvas.drawBitmap(bitmap, new android.graphics.Rect(0, H - 1, W, H), new RectF(left, bottom, right, ch), paint);
+                if (left > 0) {
+                    canvas.drawBitmap(bitmap, new android.graphics.Rect(0, 0, 1, 1), new RectF(0, 0, left, top), paint);
+                    canvas.drawBitmap(bitmap, new android.graphics.Rect(W - 1, 0, W, 1), new RectF(right, 0, cw, top), paint);
+                    canvas.drawBitmap(bitmap, new android.graphics.Rect(0, H - 1, 1, H), new RectF(0, bottom, left, ch), paint);
+                    canvas.drawBitmap(bitmap, new android.graphics.Rect(W - 1, H - 1, W, H), new RectF(right, bottom, cw, ch), paint);
+                }
+            }
             ready = this == view && haveFrame;
         }
         @Override public boolean onTouchEvent(MotionEvent event) {

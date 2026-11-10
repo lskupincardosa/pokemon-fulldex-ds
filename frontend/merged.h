@@ -390,6 +390,47 @@ inline bool MergedEdgeTileRepeats(const ScreenImage& top, int y, int side)
     return true;
 }
 
+// The bottom screen has a display of its own (Android's SECOND SCREEN: EXTRA TOUCH, e.g. the
+// AYN Thor's lower screen), so the view leaves out every piece taken from it: otherwise the
+// buttons and menus would show twice, once on their own display and once over the world.
+// Pieces of the top screen and plain colour fills stay. A layout that moves or scales the
+// top screen to make room for bottom-screen pieces (the Bag, the Pokedex, the X menu's
+// panel) has nothing to make room for any more, so it becomes the top screen alone, at its
+// full size (widened if the layout was). The name stays, for the code that asks which
+// layout is up (battles, the X menu).
+inline void MergedTopScreenOnly(Scene& scene)
+{
+    const bool hasBottom = std::any_of(scene.items.begin(), scene.items.end(),
+        [](const Element& el) { return el.screen == 1; });
+    if (!hasBottom) return;
+    const bool topLeads = !scene.items.empty() && scene.items[0].screen == 0 && scene.items[0].sx == 0 &&
+        scene.items[0].sy == 0 && scene.items[0].sw == 256 && scene.items[0].sh == 192 &&
+        scene.items[0].dx == 0 && scene.items[0].dy == 0 && scene.items[0].scale == 1.0f;
+    if (topLeads)
+    {
+        // Besides the bottom screen's pieces, what the layout added to make room for them goes
+        // too: plain colour fills (the panels and backings behind its buttons) and copies of
+        // top-screen pieces moved out of their way (a battle's message box at the left of its
+        // band). The top screen itself (the first piece) stays, and so do the pieces the
+        // widescreen battle moves beside the screen whatever the touch screen shows (wideOnly:
+        // the HP boxes), so they do not jump about as its buttons come and go.
+        scene.items.erase(std::remove_if(scene.items.begin() + 1, scene.items.end(),
+            [](const Element& el) {
+                if (el.screen == 1 || el.screen < 0) return true;
+                const bool moved = el.dx != el.sx || el.dy != el.sy || el.scale != 1.0f || el.flipX || el.flipY;
+                return el.screen == 0 && moved && !el.wideOnly;
+            }), scene.items.end());
+        if (scene.bgScreen == 1) scene.bgScreen = -1;
+        return;
+    }
+    const char* name = scene.name;
+    const bool wide = scene.wide;
+    scene = Scene();
+    scene.name = name;
+    scene.items = { { 0, 0, 0, 256, 192, 0, 0, 1.0f, 0, 255, true } }; // (FullScreen(0), declared below)
+    scene.wide = wide;
+}
+
 // Find whole opaque background bands with a non-repeating edge, once per scene.
 // Suppressing just their patterned rows leaves the window's flat horizontal strokes
 // sticking out into the world. A genuinely tiled banner and a solid fade still extend.

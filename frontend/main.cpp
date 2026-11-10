@@ -2222,6 +2222,11 @@ int main(int argc, char** argv)
     // stops at 4.1, short of WORLD ON GPU's 4.3.)
     cfg.wideLines = 720;
 #endif
+#ifdef FULLDEX_THOR
+    // (The Thor: 540 lines, half its main display's 1080, so each line is drawn twice
+    // exactly; 720 kept six helper threads at about half a core each and the fan up.)
+    cfg.wideLines = 540;
+#endif
 #endif
     if (!opt.headless) cfg.Load(opt.config);
     gameMusic.Music = cfg.music;
@@ -2263,6 +2268,13 @@ int main(int argc, char** argv)
     // One wide screen always: a layout or large screen saved by an older version is ignored.
     if (!opt.layoutGiven) cfg.layout = "merged";
     cfg.focusMode = 0;
+#endif
+#ifdef FULLDEX_THOR
+    // The Thor: always the one widescreen picture, filling its 16:9 main display (the DS's
+    // bottom screen goes on the lower display: SECOND SCREEN, set below).
+    if (!opt.layoutGiven) cfg.layout = "merged";
+    cfg.focusMode = 0;
+    cfg.aspect = 0;
 #endif
     if (opt.layoutGiven || opt.headless) cfg.layout = opt.layout;
     if (opt.fullscreen) cfg.fullscreen = true;
@@ -2391,6 +2403,13 @@ int main(int argc, char** argv)
     Pads pads;
     Layout layout = LayoutFromName(cfg.layout);
     AndroidSecondScreen secondDisplay(!opt.headless);
+#ifdef FULLDEX_THOR
+    // EXTRA TOUCH: the widescreen view here and the DS's bottom screen on the lower display.
+    if (DsDisplayState::Mode(secondDisplay.State()) != 1) secondDisplay.SetMode(1);
+#endif
+    // The bottom screen is on a display of its own (EXTRA TOUCH, read each frame): layouts
+    // that bring its buttons into the view leave them out (gen4BattleInput, MergedTopScreenOnly).
+    bool bottomElsewhere = false;
     const uint8_t* singleScreenFlag = nullptr; // set by the ROM: nonzero while a scene needs both screens
     LayoutMode preSingleLayout = LayoutMode::Merged;
     uint32_t singleFieldFrame = 0; // the last frame the overworld ran in a single-screen build
@@ -2968,7 +2987,9 @@ int main(int argc, char** argv)
         auto put = [&](int sx, int sy, int sw, int sh, float x, float y, float scale) {
             sc.items.push_back({ 1, sx, sy, sw, sh, x, y, scale, 0, 255, false });
         };
-        if (cmd || moves || frame < battleStripUntil)
+        // (Not with the bottom screen on its own display: the band below is all for the touch
+        // screen's buttons, and without them it was an empty dark panel over the battle.)
+        if (!bottomElsewhere && (cmd || moves || frame < battleStripUntil))
         {
             // (Neither: the panel without buttons, while the next ones slide in.)
             sc.name = cmd ? "battle-cmd" : moves ? "battle-moves" : "battle-strip";
@@ -5500,7 +5521,7 @@ int main(int argc, char** argv)
             // preview of the chosen row with a picture of each choice made from the paused game.
             settingsPage(Glass::I_MONITOR);
             section("SCREEN & LAYOUT", Glass::I_MONITOR);
-#if defined(__ANDROID__) && defined(SSR_PC_LAUNCHER)
+#if defined(__ANDROID__) && defined(SSR_PC_LAUNCHER) && !defined(FULLDEX_THOR)
             picker(M_SECOND_SCREEN, "SECOND SCREEN", Glass::I_SCREENS, Menu::P_SECOND,
                    { "OFF", "EXTRA TOUCH", "DS SPLIT", "DS SWAPPED", "COMPANION" }, DsDisplayState::Mode(secondDisplay.State()),
                    "What a second display shows, on dual-screen phones and handhelds.",
@@ -5509,10 +5530,12 @@ int main(int argc, char** argv)
             picker(M_LANGUAGE, "LANGUAGE", Glass::I_GLOBE, Menu::P_NONE, {}, -1,
                    "The language of Fulldex's menus.", "The game's own text comes from your ROM and is not changed here.");
             menu.items.back().value = UiLang::ChoiceName();
+#ifndef FULLDEX_THOR // (the Thor: always AUTO, filling its main display)
             picker(M_ASPECT, "ASPECT RATIO", Glass::I_RATIO, Menu::P_ASPECT, { "AUTO", "16:9", "16:10", "3:2", "4:3" }, std::clamp(cfg.aspect, 0, 4),
                    "The shape of the picture. Auto fills the screen; the others keep their shape.",
                    "Narrower than your screen: bars at the sides.");
-#ifndef __SWITCH__
+#endif
+#if !defined(__SWITCH__) && !defined(FULLDEX_THOR)
             // (The Switch always shows the one wide screen these layouts are built around.)
             // One setting: LARGE SCREEN only ever changed HYBRID (layout.h, Layout::swapped), so its
             // three choices are HYBRID's here. (layoutChoice: LayoutMode and focus.mode as one.)
@@ -8051,11 +8074,15 @@ int main(int argc, char** argv)
                         else if (k == SDLK_RETURN || act == Controls::A) nav.accept = true;
                         else if (act == Controls::B) nav.back = true;
                     }
+#ifndef FULLDEX_THOR // (the Thor: each screen has its own display, nothing to swap)
                     else if (act == Controls::SWAP) focus.manualFlip = !focus.manualFlip;
+#endif
                     else if (act == Controls::SAVE) saveQuick();
                     else if (act == Controls::LOAD) loadQuick();
                     else if (act >= 0) {} // (a DS button, or fast forward: read as held, below)
+#ifndef FULLDEX_THOR
                     else if (k == SDLK_TAB) layout = LayoutNext(layout);
+#endif
                     else if (k == SDLK_F2) focus.mode = (focus.mode + 1) % 3;
                     else if (k == SDLK_F11
 #ifdef __APPLE__
@@ -9170,6 +9197,7 @@ int main(int argc, char** argv)
         }
 
         const uint64_t secondScreenState = secondDisplay.State();
+        bottomElsewhere = DsDisplayState::BottomElsewhere(secondScreenState);
         const bool panelDown=DsDisplayState::Mode(secondScreenState)==4 && (secondScreenState&DsDisplayState::Ready) && (secondScreenState&(1ULL<<24));
         if(panelDown&&!companionFingerDown)
         {
@@ -9199,7 +9227,9 @@ int main(int argc, char** argv)
             // is not changed, so it is back as it was once the course ends.
             const bool padTouchNow = cfg.padTouch || athlonNow || touchOnlyNow;
             // (SWAP SCREENS given a button of its own in CONTROLS works without the touch cursor.)
+#ifndef FULLDEX_THOR
             if (!padTouchNow && cfg.controls.pad[Controls::SWAP] >= 0 && pressed(PAD_RS)) focus.manualFlip = !focus.manualFlip;
+#endif
             if (padTouchNow)
             {
                 if (pressed(PAD_RS)) focus.manualFlip = !focus.manualFlip;
@@ -10330,6 +10360,9 @@ int main(int argc, char** argv)
                 }
             }
         }
+        // The bottom screen is on the second display (EXTRA TOUCH): only the top screen's
+        // pieces here, so its buttons and menus are not shown twice.
+        if (merged && bottomElsewhere) MergedTopScreenOnly(scene);
         MergedPrepareEdgeWindows(scene, screenImages);
         sceneMark(1);
         // Black 2: a picture in 2D covering the world (the Surf and Fly cut-ins) is shown at 4:3:
@@ -10668,7 +10701,8 @@ int main(int argc, char** argv)
         // SoulSilver and HeartGold: the Running Shoes button beside the X menu (see shoesPix),
         // left of the menu's panel at its foot, its button named under it.
         shoesRect[2] = 0;
-        if (merged && shoesSeen && !paused && !strcmp(scene.name, "start-menu") && scene.items.size() >= 2)
+        if (merged && shoesSeen && !paused && !strcmp(scene.name, "start-menu") && scene.items.size() >= 2 &&
+            scene.items.back().screen == 1)
         {
             const Element& panel = scene.items.back();
             const float sc = panel.scale;

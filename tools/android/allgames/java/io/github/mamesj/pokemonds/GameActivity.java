@@ -53,6 +53,24 @@ public class GameActivity extends SDLActivity {
             Settings.System.ACCELEROMETER_ROTATION), false, rotationObserver);
         secondScreen = new SecondScreen(this);
         applyScreenOrientation();
+        preferSixtyHz(getWindow(), getWindowManager().getDefaultDisplay());
+    }
+
+    // The games show at most 60 frames a second, so a display at 120 Hz (the Thor's two run at
+    // 120 by default) only composes every frame twice: ask for the display's 60 Hz mode at the
+    // same size, where it has one.
+    static void preferSixtyHz(android.view.Window window, android.view.Display display) {
+        if (window == null || display == null || Build.VERSION.SDK_INT < 23) return;
+        android.view.Display.Mode now = display.getMode();
+        for (android.view.Display.Mode m : display.getSupportedModes()) {
+            if (m.getPhysicalWidth() == now.getPhysicalWidth() && m.getPhysicalHeight() == now.getPhysicalHeight()
+                && Math.abs(m.getRefreshRate() - 60f) < 1f) {
+                android.view.WindowManager.LayoutParams lp = window.getAttributes();
+                lp.preferredDisplayModeId = m.getModeId();
+                window.setAttributes(lp);
+                return;
+            }
+        }
     }
 
     private void startupTrace(String message, boolean append) {

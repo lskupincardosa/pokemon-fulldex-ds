@@ -3,6 +3,15 @@
 
 ## Unreleased
 
+- **Android, SECOND SCREEN: EXTRA TOUCH no longer shows the touch screen twice.** With the DS's
+  bottom screen on a second display (dual-screen handhelds such as the AYN Thor), the widescreen
+  view on the main display leaves out its buttons and menus and shows only the top screen.
+- **Android: the second display's DS screen is sharp.** It is scaled by a whole number (4× on the
+  AYN Thor's lower screen) without smoothing, and both displays run at 60 Hz rather than 120.
+- **AYN Thor build** (`FULLDEX_THOR`, on in `tools/android/build_all.sh`): the widescreen view on
+  the main display and the DS's bottom screen on the lower one, always. SCREEN LAYOUT, LARGE
+  SCREEN, ASPECT RATIO, SECOND SCREEN and swapping the screens are hidden, and the 3D world
+  starts at 540 lines (half the main display's height) to keep the fan down.
 - **RetroAchievements: a wrong clock is named when logging in fails.** A device whose date is
   wrong (a Switch set years ahead, often) cannot check the server's certificate, and the settings
   only said LOGIN FAILED. They now say CHECK THE CLOCK, and the message asks whether the date and

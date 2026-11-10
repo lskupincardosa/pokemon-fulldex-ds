@@ -12,6 +12,8 @@ inline const char* ModeName(int mode)
 }
 inline bool Physical(uint64_t state) { return (state & Ready) && (Mode(state) == 2 || Mode(state) == 3); }
 inline bool Swapped(uint64_t state) { return (state & Ready) && Mode(state) == 3; }
+// EXTRA TOUCH: the widescreen view here, the DS's bottom screen on the second display.
+inline bool BottomElsewhere(uint64_t state) { return (state & Ready) && Mode(state) == 1; }
 inline bool Touch(uint64_t state, int& x, int& y)
 {
     if (!(state & Ready) || (Mode(state) == 0 || Mode(state) >= 3) || !(state & (1ULL << 24))) return false;

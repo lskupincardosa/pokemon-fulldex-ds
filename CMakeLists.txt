@@ -164,6 +164,13 @@ if(ANDROID)
     target_include_directories(ssrecomp PRIVATE melonDS/src frontend runtime "${SSR_GENERATED_DIR}")
     target_compile_definitions(ssrecomp PRIVATE SSR_NO_PNG SSR_VERSION="${SSR_VERSION}")
     target_link_libraries(ssrecomp PRIVATE core SDL2::SDL2 android log)
+    # The AYN Thor (two screens): the widescreen view on the main display and the DS's bottom
+    # screen on the lower one, always; the other screen layouts are hidden (FULLDEX_THOR in
+    # frontend/main.cpp and launcher.h). tools/android/build_all.sh turns it on.
+    option(FULLDEX_THOR "Android build for the AYN Thor's two screens only" OFF)
+    if(FULLDEX_THOR)
+        target_compile_definitions(ssrecomp PRIVATE FULLDEX_THOR)
+    endif()
     # The all-games app (tools/android/build_all.sh): no game inside, the game list from the
     # PC program (frontend/pc_launcher.cpp) with the ROMs in a folder the player chooses.
     option(SSR_PC_ALL_GAMES "The all-games program with its game list" OFF)
