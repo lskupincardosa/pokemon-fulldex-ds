@@ -3,6 +3,8 @@
 
 ## Unreleased
 
+- **Bifröst:** this Thor build is now called Bifröst on the Thor's home screen and in its
+  README; it is still Fulldex underneath (same app ID, same saves).
 - **Android, SECOND SCREEN: EXTRA TOUCH no longer shows the touch screen twice.** With the DS's
   bottom screen on a second display (dual-screen handhelds such as the AYN Thor), the widescreen
   view on the main display leaves out its buttons and menus and shows only the top screen.

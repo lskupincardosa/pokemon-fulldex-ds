@@ -30,7 +30,7 @@
         </intent>
     </queries>
     <application
-        android:label="Pokémon Fulldex"
+        android:label="Bifröst"
         android:icon="@mipmap/ic_launcher"
         android:roundIcon="@mipmap/ic_launcher"
         android:allowBackup="true"
@@ -42,7 +42,7 @@
         android:theme="@android:style/Theme.NoTitleBar.Fullscreen">
         <activity
             android:name=".GameActivity"
-            android:label="Pokémon Fulldex"
+            android:label="Bifröst"
             android:alwaysRetainTaskState="true"
             android:launchMode="singleTask"
             android:screenOrientation="sensorLandscape"
@@ -61,7 +61,7 @@
              can show the player's music app's song; it reads no notifications. -->
         <service
             android:name=".NowPlayingListener"
-            android:label="Fulldex: show your music in the pause menu"
+            android:label="Bifröst: show your music in the pause menu"
             android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE"
             android:exported="true">
             <intent-filter>
